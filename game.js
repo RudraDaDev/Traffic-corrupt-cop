@@ -83,46 +83,21 @@ function pickWeapon(progress) {
 }
 
 // ---------------------------------------------------------------------------
-// ROAD & INTERSECTION - PROPER 4-WAY WITH LANES
+// ROAD & INTERSECTION - CLEAN DESIGN
 // ---------------------------------------------------------------------------
 const ROAD_W   = 180;   // Total road width
-const LANE_W   = ROAD_W / 2;  // Each direction has 2 lanes
-const CURB_W   = 20;    // Sidewalk/curb width
+const LANE_W   = ROAD_W / 2;  // Two lanes per road
 
-// Lane definitions - cars drive on the RIGHT side
-// N: going DOWN (south) -> right side = EAST  -> x = C + LANE_W/2
-// S: going UP (north)   -> right side = WEST  -> x = C - LANE_W/2
-// E: going LEFT (west)  -> right side = SOUTH -> y = C + LANE_W/2
-// W: going RIGHT (east) -> right side = NORTH -> y = C - LANE_W/2
+// Cars drive on the RIGHT side of the road
+// N (going south/down): right = EAST  -> x = C + LANE_W/4
+// S (going north/up):   right = WEST  -> x = C - LANE_W/4  
+// E (going west/left):  right = SOUTH -> y = C + LANE_W/4
+// W (going east/right): right = NORTH -> y = C - LANE_W/4
 const LANES = {
-  N: {
-    dir: { x: 0, y: 1 },      // Direction vector: down
-    spawnX: C + LANE_W/4,    // Start on right side (east)
-    spawnY: -80,
-    angle: Math.PI/2,        // Car rotation: pointing down
-    laneOffset: LANE_W/4     // Offset from center to right lane
-  },
-  S: {
-    dir: { x: 0, y: -1 },     // Direction vector: up
-    spawnX: C - LANE_W/4,    // Start on right side (west)
-    spawnY: H + 80,
-    angle: Math.PI/2,        // Car rotation: pointing down (will be flipped by dir)
-    laneOffset: -LANE_W/4
-  },
-  E: {
-    dir: { x: -1, y: 0 },     // Direction vector: left
-    spawnX: W + 80,
-    spawnY: C + LANE_W/4,    // Start on right side (south)
-    angle: 0,                // Car rotation: pointing right
-    laneOffset: -LANE_W/4
-  },
-  W: {
-    dir: { x: 1, y: 0 },      // Direction vector: right
-    spawnX: -80,
-    spawnY: C - LANE_W/4,    // Start on right side (north)
-    angle: 0,                // Car rotation: pointing right
-    laneOffset: LANE_W/4
-  }
+  N: { dir: { x: 0, y: 1 }, spawnX: C + LANE_W/4, spawnY: -80, angle: Math.PI/2, side: "east" },
+  S: { dir: { x: 0, y: -1 }, spawnX: C - LANE_W/4, spawnY: H + 80, angle: Math.PI/2, side: "west" },
+  E: { dir: { x: -1, y: 0 }, spawnX: W + 80, spawnY: C + LANE_W/4, angle: 0, side: "south" },
+  W: { dir: { x: 1, y: 0 }, spawnX: -80, spawnY: C - LANE_W/4, angle: 0, side: "north" }
 };
 
 // ---------------------------------------------------------------------------
@@ -148,11 +123,11 @@ function isGreen(dir) {
 }
 
 // ---------------------------------------------------------------------------
-// CAR - BETTER GRAPHICS AND PROPER LANE POSITIONING
+// CAR - CLEAN SIMPLE GRAPHICS
 // ---------------------------------------------------------------------------
 const cars = [];
-const CAR_W = 36;
-const CAR_H = 64;
+const CAR_W = 32;
+const CAR_H = 56;
 const MAX_SPEED = 3.0;
 const MIN_SPEED = 1.2;
 
@@ -164,20 +139,14 @@ function spawnCar() {
     const lane = LANES[dir];
     
     const unlawful = Math.random() < 0.15;
-    const colors = ["#2a4b8d", "#8d4b2a", "#2a8d4b", "#8d2a8d", "#4b2a8d", "#8d8d2a", "#2a8d8d"];
+    // Better car colors
+    const colors = ["#1a3a5a", "#5a3a1a", "#1a5a3a", "#5a1a5a", "#3a1a5a", "#5a5a1a", "#1a5a5a"];
     const carColor = unlawful ? "#ff3333" : colors[Math.floor(Math.random() * colors.length)];
     const speed = MIN_SPEED + Math.random() * (MAX_SPEED - MIN_SPEED);
     
-    // Position cars in their proper lane
-    let spawnX = lane.spawnX;
-    let spawnY = lane.spawnY;
-    
-    // Add some randomness within the lane
-    if (dir === "N" || dir === "S") {
-      spawnX += (Math.random() - 0.5) * 20;
-    } else {
-      spawnY += (Math.random() - 0.5) * 20;
-    }
+    // Add randomness within lane
+    let spawnX = lane.spawnX + (Math.random() - 0.5) * 15;
+    let spawnY = lane.spawnY + (Math.random() - 0.5) * 15;
     
     cars.push({
       x: spawnX,
@@ -209,11 +178,10 @@ function updateCars() {
       continue;
     }
     
-    // Move car
     car.x += car.dx;
     car.y += car.dy;
     
-    // Check if car ran a red light
+    // Check red light running
     const inIntersection = 
       car.x > C - ROAD_W/2 && car.x < C + ROAD_W/2 &&
       car.y > C - ROAD_W/2 && car.y < C + ROAD_W/2;
@@ -223,7 +191,7 @@ function updateCars() {
       car.color = "#ff3333";
     }
     
-    // Remove cars that are far off-screen
+    // Remove off-screen cars
     if (car.x < -100 || car.x > W + 100 || car.y < -100 || car.y > H + 100) {
       cars.splice(i, 1);
     }
@@ -349,47 +317,54 @@ function drawEnding() {
   cutsceneProgress++;
   const t = Math.min(1, cutsceneProgress / CUTSCENE_DUR);
   
+  // Space background
   const grad = CTX.createRadialGradient(C, H/2, 0, C, H/2, Math.max(W, H)/2);
   grad.addColorStop(0, "#000000");
-  grad.addColorStop(0.3, "#0a0a1a");
-  grad.addColorStop(1, "#000033");
+  grad.addColorStop(0.5, "#0a0a1a");
+  grad.addColorStop(1, "#000022");
   CTX.fillStyle = grad;
   CTX.fillRect(0, 0, W, H);
   
-  const time = Date.now() * 0.001;
+  // Stars
   CTX.fillStyle = "#ffffff";
+  const time = Date.now() * 0.001;
   for (let i = 0; i < 200; i++) {
     const x = (i * 179) % W;
     const y = (i * 137) % H;
     const s = 0.5 + Math.sin(x * 0.01 + time + i) * 0.5;
-    CTX.globalAlpha = 0.3 + Math.sin(x * 0.01 + time + i * 2) * 0.2;
+    CTX.globalAlpha = 0.4 + Math.sin(x * 0.01 + time + i * 2) * 0.2;
     CTX.fillRect(x, y, s, s);
   }
   CTX.globalAlpha = 1;
   
+  // Earth
   const earthR = 80 + t * 40;
   CTX.fillStyle = "#1a3a5c";
   CTX.beginPath();
   CTX.arc(C, H - 100 - t * 50, earthR, 0, Math.PI * 2);
   CTX.fill();
   
+  // Atmosphere
   const grad2 = CTX.createRadialGradient(C, H - 100 - t * 50, earthR * 0.8, C, H - 100 - t * 50, earthR * 1.2);
-  grad2.addColorStop(0, "rgba(100,200,255,0.3)");
+  grad2.addColorStop(0, "rgba(100,200,255,0.4)");
   grad2.addColorStop(1, "rgba(100,200,255,0)");
   CTX.fillStyle = grad2;
   CTX.beginPath();
   CTX.arc(C, H - 100 - t * 50, earthR * 1.2, 0, Math.PI * 2);
   CTX.fill();
   
+  // Mushroom cloud
   if (t > 0.3) {
     const cloudT = (t - 0.3) / 0.7;
     const cloudY = H - 80 - cloudT * 300;
     const cloudH = 50 + cloudT * 400;
     const cloudW = 40 + cloudT * 300;
     
+    // Stem
     CTX.fillStyle = "#4a3a2a";
     CTX.fillRect(C - 10, cloudY, 20, cloudH * 0.4);
     
+    // Cap
     const capGrad = CTX.createRadialGradient(C, cloudY, 0, C, cloudY, cloudW / 2);
     capGrad.addColorStop(0, "#ffffff");
     capGrad.addColorStop(0.7, "#e0c0a0");
@@ -400,6 +375,7 @@ function drawEnding() {
     CTX.fill();
   }
   
+  // Text
   if (t > 0.8) {
     const alpha = Math.min(1, (t - 0.8) / 0.2);
     CTX.fillStyle = `rgba(255,255,255,${alpha})`;
@@ -416,37 +392,31 @@ function drawEnding() {
 }
 
 // ---------------------------------------------------------------------------
-// DRAWING - COMPLETELY REDESIGNED WITH PROPER VISUALS
+// DRAWING - CLEAN, SIMPLE, READABLE
 // ---------------------------------------------------------------------------
 
 function drawRoads() {
-  // Background (grass/sidewalk)
-  CTX.fillStyle = "#1a2a1a";
+  // Background (dark grass)
+  CTX.fillStyle = "#111111";
   CTX.fillRect(0, 0, W, H);
   
-  // Draw the two roads with proper lanes and markings
-  
-  // ===== VERTICAL ROAD (North-South) =====
-  // Main road surface
-  CTX.fillStyle = "#2a2a2a";
+  // Draw vertical road (North-South)
+  CTX.fillStyle = "#222222";
   CTX.fillRect(C - ROAD_W/2, 0, ROAD_W, H);
   
-  // Lane dividers (dashed white lines)
-  CTX.strokeStyle = "#ffffff";
-  CTX.lineWidth = 2;
-  CTX.setLineDash([15, 10]);
-  
-  // Center divider between N and S lanes
+  // Lane divider (dashed white line)
+  CTX.strokeStyle = "#444444";
+  CTX.lineWidth = 1;
+  CTX.setLineDash([10, 8]);
   CTX.beginPath();
   CTX.moveTo(C, 0);
   CTX.lineTo(C, H);
   CTX.stroke();
-  
   CTX.setLineDash([]);
   
-  // Road edges (curbs)
-  CTX.strokeStyle = "#5a5a5a";
-  CTX.lineWidth = 6;
+  // Road edges (white lines)
+  CTX.strokeStyle = "#666666";
+  CTX.lineWidth = 3;
   CTX.beginPath();
   CTX.moveTo(C - ROAD_W/2, 0);
   CTX.lineTo(C - ROAD_W/2, H);
@@ -454,14 +424,14 @@ function drawRoads() {
   CTX.lineTo(C + ROAD_W/2, H);
   CTX.stroke();
   
-  // ===== HORIZONTAL ROAD (East-West) =====
-  CTX.fillStyle = "#2a2a2a";
+  // Draw horizontal road (East-West)
+  CTX.fillStyle = "#222222";
   CTX.fillRect(0, C - ROAD_W/2, W, ROAD_W);
   
-  // Lane dividers
-  CTX.strokeStyle = "#ffffff";
-  CTX.lineWidth = 2;
-  CTX.setLineDash([15, 10]);
+  // Lane divider
+  CTX.strokeStyle = "#444444";
+  CTX.lineWidth = 1;
+  CTX.setLineDash([10, 8]);
   CTX.beginPath();
   CTX.moveTo(0, C);
   CTX.lineTo(W, C);
@@ -469,8 +439,8 @@ function drawRoads() {
   CTX.setLineDash([]);
   
   // Road edges
-  CTX.strokeStyle = "#5a5a5a";
-  CTX.lineWidth = 6;
+  CTX.strokeStyle = "#666666";
+  CTX.lineWidth = 3;
   CTX.beginPath();
   CTX.moveTo(0, C - ROAD_W/2);
   CTX.lineTo(W, C - ROAD_W/2);
@@ -478,108 +448,102 @@ function drawRoads() {
   CTX.lineTo(W, C + ROAD_W/2);
   CTX.stroke();
   
-  // ===== INTERSECTION MARKINGS =====
-  // Stop lines (white bars before intersection)
-  CTX.strokeStyle = "#ffffff";
-  CTX.lineWidth = 4;
+  // Stop lines at intersection (thick white lines)
+  CTX.strokeStyle = "#aaaaaa";
+  CTX.lineWidth = 6;
   
-  // North stop line (for N-bound traffic)
+  // North stop line
   CTX.beginPath();
-  CTX.moveTo(C - ROAD_W/2 + 10, C - ROAD_W/2 - 15);
-  CTX.lineTo(C + ROAD_W/2 - 10, C - ROAD_W/2 - 15);
+  CTX.moveTo(C - ROAD_W/2 + 20, C - ROAD_W/2 - 10);
+  CTX.lineTo(C + ROAD_W/2 - 20, C - ROAD_W/2 - 10);
   CTX.stroke();
   
   // South stop line
   CTX.beginPath();
-  CTX.moveTo(C - ROAD_W/2 + 10, C + ROAD_W/2 + 15);
-  CTX.lineTo(C + ROAD_W/2 - 10, C + ROAD_W/2 + 15);
+  CTX.moveTo(C - ROAD_W/2 + 20, C + ROAD_W/2 + 10);
+  CTX.lineTo(C + ROAD_W/2 - 20, C + ROAD_W/2 + 10);
   CTX.stroke();
   
   // East stop line
   CTX.beginPath();
-  CTX.moveTo(C + ROAD_W/2 + 15, C - ROAD_W/2 + 10);
-  CTX.lineTo(C + ROAD_W/2 + 15, C + ROAD_W/2 - 10);
+  CTX.moveTo(C + ROAD_W/2 + 10, C - ROAD_W/2 + 20);
+  CTX.lineTo(C + ROAD_W/2 + 10, C + ROAD_W/2 - 20);
   CTX.stroke();
   
   // West stop line
   CTX.beginPath();
-  CTX.moveTo(C - ROAD_W/2 - 15, C - ROAD_W/2 + 10);
-  CTX.lineTo(C - ROAD_W/2 - 15, C + ROAD_W/2 - 10);
+  CTX.moveTo(C - ROAD_W/2 - 10, C - ROAD_W/2 + 20);
+  CTX.lineTo(C - ROAD_W/2 - 10, C + ROAD_W/2 - 20);
   CTX.stroke();
   
   // Crosswalk (zebra stripes)
-  CTX.strokeStyle = "#ffffff";
-  CTX.lineWidth = 3;
+  CTX.strokeStyle = "#888888";
+  CTX.lineWidth = 4;
   
-  // Horizontal crosswalk stripes on vertical road
-  for (let i = 0; i < 6; i++) {
-    const y = C - 15 + i * 8;
+  // Horizontal stripes on vertical road
+  for (let i = 0; i < 5; i++) {
+    const y = C - 12 + i * 7;
     CTX.beginPath();
-    CTX.moveTo(C - ROAD_W/2 + 20, y);
-    CTX.lineTo(C + ROAD_W/2 - 20, y);
+    CTX.moveTo(C - ROAD_W/2 + 25, y);
+    CTX.lineTo(C + ROAD_W/2 - 25, y);
     CTX.stroke();
   }
   
-  // Vertical crosswalk stripes on horizontal road
-  for (let i = 0; i < 6; i++) {
-    const x = C - 15 + i * 8;
+  // Vertical stripes on horizontal road
+  for (let i = 0; i < 5; i++) {
+    const x = C - 12 + i * 7;
     CTX.beginPath();
-    CTX.moveTo(x, C - ROAD_W/2 + 20);
-    CTX.lineTo(x, C + ROAD_W/2 - 20);
+    CTX.moveTo(x, C - ROAD_W/2 + 25);
+    CTX.lineTo(x, C + ROAD_W/2 - 25);
     CTX.stroke();
   }
 }
 
 function drawTrafficLights() {
-  const lightSize = 12;
-  const lightGap = 8;
-  const poleWidth = 4;
-  const poleHeight = 50;
-  const boxW = 18;
-  const boxH = 60;
+  const lightSize = 10;
+  const lightGap = 6;
+  const boxW = 14;
+  const boxH = 42;
   
-  // Helper to draw a traffic light
   function drawLight(x, y, lightState) {
-    // Pole
-    CTX.fillStyle = "#444444";
-    CTX.fillRect(x - poleWidth/2, y, poleWidth, poleHeight);
-    
-    // Light box
-    CTX.fillStyle = "#222222";
+    // Light box (black rectangle on pole)
+    CTX.fillStyle = "#111111";
     CTX.fillRect(x - boxW/2, y - boxH, boxW, boxH);
+    
+    // Pole
+    CTX.fillStyle = "#333333";
+    CTX.fillRect(x - 2, y, 4, 30);
     
     // Lights
     const lightY = y - boxH + boxH/2 - lightGap;
     
     // Red
-    CTX.fillStyle = lightState === "red" ? "#ff3333" : "#441111";
+    CTX.fillStyle = lightState === "red" ? "#ff3333" : "#331111";
     CTX.beginPath();
     CTX.arc(x, lightY - lightGap, lightSize/2, 0, Math.PI * 2);
     CTX.fill();
     
     // Yellow
-    CTX.fillStyle = lightState === "yellow" ? "#ffff33" : "#444411";
+    CTX.fillStyle = lightState === "yellow" ? "#ffff33" : "#333311";
     CTX.beginPath();
     CTX.arc(x, lightY, lightSize/2, 0, Math.PI * 2);
     CTX.fill();
     
     // Green
-    CTX.fillStyle = lightState === "green" ? "#33ff33" : "#114411";
+    CTX.fillStyle = lightState === "green" ? "#33ff33" : "#113311";
     CTX.beginPath();
     CTX.arc(x, lightY + lightGap, lightSize/2, 0, Math.PI * 2);
     CTX.fill();
   }
   
-  // NS lights control both N and S traffic
-  // Top-left corner (for N-bound)
+  // Traffic lights at all 4 corners
+  // NW corner - controls NS traffic
   drawLight(C - ROAD_W/2 - 15, C - ROAD_W/2 - 20, lightNS);
-  // Bottom-left corner (for S-bound)
+  // SW corner - controls NS traffic
   drawLight(C - ROAD_W/2 - 15, C + ROAD_W/2 + 20, lightNS);
-  
-  // EW lights control both E and W traffic
-  // Top-right corner (for E-bound)
+  // NE corner - controls EW traffic
   drawLight(C + ROAD_W/2 + 15, C - ROAD_W/2 - 20, lightEW);
-  // Bottom-right corner (for W-bound)
+  // SE corner - controls EW traffic
   drawLight(C + ROAD_W/2 + 15, C + ROAD_W/2 + 20, lightEW);
 }
 
@@ -600,56 +564,31 @@ function drawCars() {
     CTX.translate(car.x, car.y);
     CTX.rotate(car.lane.angle);
     
-    // Car body - sedan shape
+    // Car body - simple clean rectangle
     CTX.fillStyle = car.hit ? "#ffaa00" : car.color;
+    CTX.fillRect(-car.w/2, -car.h/2, car.w, car.h);
     
-    // Main body
-    CTX.beginPath();
-    CTX.roundRect(-car.w/2, -car.h/2 + 4, car.w, car.h - 8, 4);
-    CTX.fill();
-    
-    // Hood (front)
-    CTX.beginPath();
-    CTX.roundRect(-car.w/2 + 2, -car.h/2, car.w - 4, 8, 4);
-    CTX.fill();
-    
-    // Trunk (rear)
-    CTX.beginPath();
-    CTX.roundRect(-car.w/2 + 2, car.h/2 - 4, car.w - 4, 4, 4);
-    CTX.fill();
-    
-    // Windows
+    // Windshield (front)
     CTX.fillStyle = "#2a3a4a";
-    const winW = car.w * 0.5;
-    const winH = car.h * 0.35;
-    CTX.beginPath();
-    CTX.roundRect(-winW/2, -car.h/2 + 8, winW, winH, 2);
-    CTX.fill();
-    CTX.beginPath();
-    CTX.roundRect(-winW/2, -8, winW, winH, 2);
-    CTX.fill();
+    CTX.fillRect(-car.w/2 + 4, -car.h/2 + 4, car.w - 8, 12);
     
-    // Headlights (front)
+    // Rear window
+    CTX.fillStyle = "#2a3a4a";
+    CTX.fillRect(-car.w/2 + 4, car.h/2 - 12, car.w - 8, 8);
+    
+    // Headlights (front) - only visible from front
     CTX.fillStyle = "#ffff88";
-    CTX.beginPath();
-    CTX.arc(car.w/2 - 6, -car.h/2 + 4, 3, 0, Math.PI * 2);
-    CTX.fill();
-    CTX.beginPath();
-    CTX.arc(car.w/2 - 6, car.h/2 - 8, 3, 0, Math.PI * 2);
-    CTX.fill();
+    CTX.fillRect(car.w/2 - 6, -car.h/2 + 4, 4, 4);
+    CTX.fillRect(car.w/2 - 6, car.h/2 - 8, 4, 4);
     
     // Taillights (rear) - red
     CTX.fillStyle = "#ff2222";
-    CTX.beginPath();
-    CTX.arc(-car.w/2, -car.h/2 + 4, 3, 0, Math.PI * 2);
-    CTX.fill();
-    CTX.beginPath();
-    CTX.arc(-car.w/2, car.h/2 - 8, 3, 0, Math.PI * 2);
-    CTX.fill();
+    CTX.fillRect(-car.w/2 + 2, -car.h/2 + 4, 4, 4);
+    CTX.fillRect(-car.w/2 + 2, car.h/2 - 8, 4, 4);
     
     // Wheels
     CTX.fillStyle = "#1a1a1a";
-    const wheelR = car.w * 0.15;
+    const wheelR = 5;
     CTX.beginPath();
     CTX.arc(-car.w/2 + 8, car.h/2 - 6, wheelR, 0, Math.PI * 2);
     CTX.fill();
@@ -663,49 +602,15 @@ function drawCars() {
     CTX.arc(car.w/2 - 8, -car.h/2 + 6, wheelR, 0, Math.PI * 2);
     CTX.fill();
     
-    // Wheel details (silver rims)
-    CTX.fillStyle = "#aaaaaa";
-    CTX.beginPath();
-    CTX.arc(-car.w/2 + 8, car.h/2 - 6, wheelR * 0.6, 0, Math.PI * 2);
-    CTX.fill();
-    CTX.beginPath();
-    CTX.arc(car.w/2 - 8, car.h/2 - 6, wheelR * 0.6, 0, Math.PI * 2);
-    CTX.fill();
-    CTX.beginPath();
-    CTX.arc(-car.w/2 + 8, -car.h/2 + 6, wheelR * 0.6, 0, Math.PI * 2);
-    CTX.fill();
-    CTX.beginPath();
-    CTX.arc(car.w/2 - 8, -car.h/2 + 6, wheelR * 0.6, 0, Math.PI * 2);
-    CTX.fill();
-    
-    // Unlawful indicator - red glow
+    // Unlawful indicator - red outline
     if (car.unlawful) {
       CTX.strokeStyle = "#ff0000";
       CTX.lineWidth = 2;
-      CTX.beginPath();
-      CTX.roundRect(-car.w/2 - 2, -car.h/2 - 2, car.w + 4, car.h + 4, 6);
-      CTX.stroke();
+      CTX.strokeRect(-car.w/2 - 1, -car.h/2 - 1, car.w + 2, car.h + 2);
     }
     
     CTX.restore();
   }
-}
-
-// Add roundRect to Canvas
-if (!CanvasRenderingContext2D.prototype.roundRect) {
-  CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
-    this.beginPath();
-    this.moveTo(x + radius, y);
-    this.lineTo(x + width - radius, y);
-    this.quadraticCurveTo(x + width, y, x + width, y + radius);
-    this.lineTo(x + width, y + height - radius);
-    this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    this.lineTo(x + radius, y + height);
-    this.quadraticCurveTo(x, y + height, x, y + height - radius);
-    this.lineTo(x, y + radius);
-    this.quadraticCurveTo(x, y, x + radius, y);
-    this.closePath();
-  };
 }
 
 function drawProjectiles() {
@@ -725,7 +630,7 @@ function drawProjectiles() {
       CTX.stroke();
     }
     
-    if (p.weapon && (p.weapon.id === "russ" || p.weapon.id === "nuke" || p.weapon.id === "meteor" || p.weapon.id === "hammer")) {
+    if (p.weapon && (p.weapon.id === "russ" || p.weapon.id === "nuke" || p.weapon.id === "meteor")) {
       CTX.fillStyle = p.color;
       CTX.font = "bold 12px monospace";
       CTX.textAlign = "center";
@@ -737,13 +642,13 @@ function drawProjectiles() {
 function drawExplosions() {
   for (const e of explosions) {
     const alpha = e.life / e.maxLife;
-    CTX.fillStyle = `rgba(255, 100, 0, ${alpha * 0.6})`;
+    CTX.fillStyle = `rgba(255, 100, 0, ${alpha * 0.7})`;
     CTX.beginPath();
     CTX.arc(e.x, e.y, e.r, 0, Math.PI * 2);
     CTX.fill();
     
     CTX.strokeStyle = `rgba(255, 200, 0, ${alpha})`;
-    CTX.lineWidth = 3;
+    CTX.lineWidth = 2;
     CTX.beginPath();
     CTX.arc(e.x, e.y, e.r * 0.7, 0, Math.PI * 2);
     CTX.stroke();
@@ -755,7 +660,7 @@ function drawExplosions() {
 // ---------------------------------------------------------------------------
 function frame() {
   if (state !== "ending" && state !== "gameOver") {
-    CTX.fillStyle = "#1a2a1a";
+    CTX.fillStyle = "#111111";
     CTX.fillRect(0, 0, W, H);
   }
   
