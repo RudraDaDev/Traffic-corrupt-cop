@@ -690,6 +690,17 @@ function resetGame() {
 }
 
 // ---------------------------------------------------------------------------
+// GLOBAL FUNCTION FOR HTML ONCLICK
+// ---------------------------------------------------------------------------
+function startGame() {
+  if (state === "menu") {
+    state = "playing";
+    document.getElementById("overlay").classList.add("hidden");
+    document.getElementById("again").classList.remove("show");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // INIT
 // ---------------------------------------------------------------------------
 document.getElementById("again").addEventListener("click", resetGame);
