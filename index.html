@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRAFFIC : CORRUPT COP</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="stage">
+    <canvas id="game" width="960" height="960"></canvas>
+
+    <div id="hudLeft">EXPLOSIONS&nbsp;<b id="k">00</b>&nbsp;/&nbsp;10</div>
+    <div id="gameTitle">TRAFFIC&nbsp;:&nbsp;CORRUPT&nbsp;COP</div>
+    <button id="mute">SOUND&nbsp;ON</button>
+    <div id="ticker">tap to fire. the armory picks for you.</div>
+
+    <div id="overlay">
+      <h1>TRAFFIC&nbsp;:&nbsp;CORRUPT&nbsp;COP</h1>
+      <p>
+        a plain 4-way intersection. most of them drive normally.<br>
+        a few are being unlawful — you can tell, they run reddish.<br>
+        <br>
+        tap to fire. the armory has 10 weapons. <b>you will never see which one.</b><br>
+        there is no weapon view. there is no weapon view on purpose.<br>
+        <br>
+        10 car explosions ends the shift.
+      </p>
+      <div class="go">TAP&nbsp;TO&nbsp;START&nbsp;SHIFT</div>
+    </div>
+
+    <button id="again">CLOCK&nbsp;OUT&nbsp;·&nbsp;NEW&nbsp;SHIFT</button>
+  </div>
+  <div class="foot">tap = fire &nbsp;·&nbsp; m = mute &nbsp;·&nbsp; proximity decides whether a car gets affected or exploded</div>
+  <script src="game.js"></script>
+</body>
+</html>
