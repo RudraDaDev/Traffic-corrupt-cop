@@ -90,14 +90,13 @@ function pickWeapon(progress) {
 // ---------------------------------------------------------------------------
 const ROAD_W   = 180;
 const ROAD_GAP = 40;
-const CENTER   = { x: C, y: C };
 
-// Lane centers for each direction
+// Lane info for each direction
 const LANES = {
-  N: { x: C,      y: ROAD_GAP/2 + ROAD_W/2,     dir: { x:0, y:1 },   spawnY: -60,   spawnX: C },
-  S: { x: C,      y: H - ROAD_GAP/2 - ROAD_W/2, dir: { x:0, y:-1 },  spawnY: H+60,  spawnX: C },
-  E: { x: W - ROAD_GAP/2 - ROAD_W/2, y: C,      dir: { x:-1, y:0 },   spawnY: C,     spawnX: W+60 },
-  W: { x: ROAD_GAP/2 + ROAD_W/2,     y: C,      dir: { x:1,  y:0 },   spawnY: C,     spawnX: -60 }
+  N: { x: C, y: ROAD_GAP/2 + ROAD_W/2, dir: { x:0, y:1 }, spawnY: -60, spawnX: C, angle: 0 },
+  S: { x: C, y: H - ROAD_GAP/2 - ROAD_W/2, dir: { x:0, y:-1 }, spawnY: H+60, spawnX: C, angle: Math.PI },
+  E: { x: W - ROAD_GAP/2 - ROAD_W/2, y: C, dir: { x:-1, y:0 }, spawnY: C, spawnX: W+60, angle: Math.PI/2 },
+  W: { x: ROAD_GAP/2 + ROAD_W/2, y: C, dir: { x:1, y:0 }, spawnY: C, spawnX: -60, angle: -Math.PI/2 }
 };
 
 // ---------------------------------------------------------------------------
@@ -105,8 +104,8 @@ const LANES = {
 // ---------------------------------------------------------------------------
 let lightNS = "green";   // green | yellow | red
 let lightEW = "red";
-let lightTimer = 0;
-const LIGHT_DUR = 180;    // ~3 sec at 60fps
+let lightTimer = 180;    // Start at full duration
+const LIGHT_DUR = 180;   // ~3 sec at 60fps
 
 function updateLights() {
   lightTimer--;
@@ -133,7 +132,7 @@ const MIN_SPEED = 0.8;
 
 function spawnCar() {
   if (state !== "playing") return;
-  if (Math.random() < 0.03 && cars.length < 20) {
+  if (Math.random() < 0.035 && cars.length < 25) {
     const dirs = ["N","S","E","W"];
     const dir = dirs[Math.floor(Math.random()*dirs.length)];
     const lane = LANES[dir];
@@ -145,20 +144,22 @@ function spawnCar() {
     const colors = ["#4488ff", "#ff8844", "#44ff88", "#ff44ff", "#8844ff", "#ffff44", "#44ffff"];
     const carColor = unlawful ? "#ff5d45" : colors[Math.floor(Math.random()*colors.length)];
     
+    const speed = MIN_SPEED + Math.random()*(MAX_SPEED-MIN_SPEED);
+    
     cars.push({
       x: lane.spawnX,
       y: lane.spawnY,
       dir: dir,
-      dx: lane.dir.x * (MIN_SPEED + Math.random()*(MAX_SPEED-MIN_SPEED)),
-      dy: lane.dir.y * (MIN_SPEED + Math.random()*(MAX_SPEED-MIN_SPEED)),
+      lane: lane,  // Store lane reference
+      dx: lane.dir.x * speed,
+      dy: lane.dir.y * speed,
       w: CAR_W,
       h: CAR_H,
       color: carColor,
       unlawful: unlawful,
       exploded: false,
       hit: false,
-      hitTimer: 0,
-      angle: 0
+      hitTimer: 0
     });
   }
 }
@@ -223,7 +224,7 @@ function fireWeapon(x, y) {
     x: x,
     y: y,
     r: 5,
-    maxR: weapon.radius,
+    maxR: Math.min(weapon.radius, 300),  // Cap visual radius
     color: weapon.color,
     life: 15,
     maxLife: 15,
@@ -238,7 +239,7 @@ function fireWeapon(x, y) {
     const dy = car.y - y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
-    // Super near = explode, otherwise just affect
+    // Super near = explode
     if (dist < 40) {
       // Explode the car
       car.exploded = true;
@@ -265,21 +266,27 @@ function fireWeapon(x, y) {
       if (kills >= 10) {
         state = "ending";
         cutsceneProgress = 0;
-        setTimeout(() => { state = "gameOver"; }, 2500);
+        setTimeout(() => { 
+          state = "gameOver";
+          document.getElementById("again").classList.add("show");
+        }, 2500);
       }
       
       // If it's a nuke, trigger immediate nuclear effect
       if (weapon.id === "nuke") {
         triggerNuke();
       }
-    } else if (dist < weapon.radius) {
-      // Affect the car (spin, stop, etc.)
+    } 
+    // Within weapon radius = affect (spin/push)
+    else if (dist < weapon.radius) {
+      // Affect the car
       car.hit = true;
       car.hitTimer = 60;
-      car.dx = lane.dir.x * (MIN_SPEED + Math.random()*(MAX_SPEED-MIN_SPEED)) * (Math.random() > 0.5 ? 1 : -1);
-      car.dy = lane.dir.y * (MIN_SPEED + Math.random()*(MAX_SPEED-MIN_SPEED)) * (Math.random() > 0.5 ? 1 : -1);
-      car.x += (Math.random()-0.5)*20;
-      car.y += (Math.random()-0.5)*20;
+      // Randomize direction slightly
+      const angle = Math.atan2(dy, dx);
+      const pushForce = 2.0 * (1 - dist/weapon.radius);
+      car.dx = Math.cos(angle) * pushForce + car.lane.dir.x * 0.5;
+      car.dy = Math.sin(angle) * pushForce + car.lane.dir.y * 0.5;
     }
   }
   
@@ -289,14 +296,14 @@ function fireWeapon(x, y) {
 
 function triggerNuke() {
   // Massive explosion
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     explosions.push({
-      x: C + (Math.random()-0.5)*200,
-      y: C + (Math.random()-0.5)*200,
+      x: C + (Math.random()-0.5)*300,
+      y: C + (Math.random()-0.5)*300,
       r: 10,
-      maxR: 200,
-      life: 60,
-      maxLife: 60
+      maxR: 250,
+      life: 80,
+      maxLife: 80
     });
   }
 }
@@ -340,7 +347,7 @@ function drawEnding() {
   // Stars (twinkling)
   CTX.fillStyle = "#ffffff";
   const time = Date.now() * 0.001;
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 200; i++) {
     const x = (i * 179) % W;
     const y = (i * 137) % H;
     const s = 0.5 + Math.sin(x * 0.01 + time + i) * 0.5;
@@ -398,17 +405,17 @@ function drawEnding() {
     CTX.font = "bold 24px monospace";
     CTX.fillText("tap to clock out", C, H/2 + 40);
   }
-  
-  // Show restart button
-  if (t >= 1) {
-    document.getElementById("again").classList.add("show");
-  }
 }
 
 // ---------------------------------------------------------------------------
 // DRAWING
 // ---------------------------------------------------------------------------
 function drawRoads() {
+  // Background
+  CTX.fillStyle = "#20262b";
+  CTX.fillRect(0, 0, W, H);
+  
+  // Roads
   CTX.fillStyle = "#1a1a1a";
   
   // Vertical road (N-S)
@@ -501,20 +508,13 @@ function drawCars() {
       continue;
     }
     
-    // Draw car body
-    CTX.fillStyle = car.hit ? "#ffaa00" : car.color;
-    
     // Save context for rotation
     CTX.save();
     CTX.translate(car.x, car.y);
+    CTX.rotate(car.lane.angle);
     
-    // Rotate based on direction
-    if (car.dir === "N") CTX.rotate(0);
-    else if (car.dir === "S") CTX.rotate(Math.PI);
-    else if (car.dir === "E") CTX.rotate(Math.PI/2);
-    else if (car.dir === "W") CTX.rotate(-Math.PI/2);
-    
-    // Draw car rectangle
+    // Draw car body
+    CTX.fillStyle = car.hit ? "#ffaa00" : car.color;
     CTX.fillRect(-car.w/2, -car.h/2, car.w, car.h);
     
     // Windows
@@ -526,15 +526,8 @@ function drawCars() {
     
     // Headlights
     CTX.fillStyle = "#ffff88";
-    if (car.dir === "N") {
-      CTX.fillRect(-3, -car.h/2 - 3, 6, 6);
-    } else if (car.dir === "S") {
-      CTX.fillRect(-3, car.h/2, 6, 6);
-    } else if (car.dir === "E") {
-      CTX.fillRect(car.w/2, -3, 6, 6);
-    } else if (car.dir === "W") {
-      CTX.fillRect(-car.w/2 - 6, -3, 6, 6);
-    }
+    CTX.fillRect(-3, -car.h/2 - 3, 6, 6);
+    CTX.fillRect(-3, car.h/2, 6, 6);
     
     CTX.restore();
   }
@@ -573,6 +566,14 @@ function drawProjectiles() {
       CTX.textAlign = "center";
       CTX.fillText("NUKE", p.x, p.y);
     }
+    
+    // For meteor
+    if (p.weapon && p.weapon.id === "meteor") {
+      CTX.fillStyle = "#ff4400";
+      CTX.font = "bold 12px monospace";
+      CTX.textAlign = "center";
+      CTX.fillText("METEOR", p.x, p.y);
+    }
   }
 }
 
@@ -596,6 +597,12 @@ function drawExplosions() {
 // MAIN LOOP
 // ---------------------------------------------------------------------------
 function frame() {
+  // Clear only if not in cutscene
+  if (state !== "ending" && state !== "gameOver") {
+    CTX.fillStyle = "#20262b";
+    CTX.fillRect(0, 0, W, H);
+  }
+  
   if (state === "menu") {
     CTX.fillStyle = "#07090c";
     CTX.fillRect(0, 0, W, H);
@@ -606,10 +613,6 @@ function frame() {
     drawEnding();
     return;
   }
-  
-  // Clear
-  CTX.fillStyle = "#20262b";
-  CTX.fillRect(0, 0, W, H);
   
   // Update
   updateLights();
@@ -631,14 +634,6 @@ function frame() {
 // ---------------------------------------------------------------------------
 // INPUT
 // ---------------------------------------------------------------------------
-let mouseX = 0, mouseY = 0;
-
-CVS.addEventListener("mousemove", e => {
-  const rect = CVS.getBoundingClientRect();
-  mouseX = (e.clientX - rect.left) * (W / rect.width);
-  mouseY = (e.clientY - rect.top) * (H / rect.height);
-});
-
 function handleTap(x, y) {
   if (state === "menu") {
     state = "playing";
